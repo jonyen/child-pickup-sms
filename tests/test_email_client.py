@@ -17,6 +17,7 @@ def test_send_summary_calls_ses(mock_boto3):
         pickup_date=date(2026, 4, 12),
         confirmed=[GroupOutcome("Hanseul or Deandra", ["Caden Shim"], None)],
         changed=[GroupOutcome("Grandma Linda", ["Estelle Chow"], "Jenny or Alan")],
+        absent=[GroupOutcome("Shara", ["Bobby Chow"])],
         no_response=[GroupOutcome("Shara", ["Alice"], None, parent_contacts=[("Jen", "+15551110000")])],
         send_errors=["no phones for Ghost Kid"],
     )
@@ -43,6 +44,6 @@ def test_send_summary_dry_run_skips(mock_boto3):
         dry_run=True,
     )
     data = SummaryData(pickup_date=date(2026, 4, 12), confirmed=[], changed=[],
-                       no_response=[], send_errors=[])
+                       absent=[], no_response=[], send_errors=[])
     client.send_summary(data)
     mock_boto3.client.assert_not_called()

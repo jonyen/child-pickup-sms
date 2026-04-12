@@ -11,11 +11,12 @@ from .logging_setup import get_logger
 log = get_logger(__name__)
 
 YES_REGEX = re.compile(r"^(YES|Y|YEP|YEAH|YUP|CONFIRM|CONFIRMED|OK|OKAY|SURE)$")
+NO_REGEX = re.compile(r"^(NO|NOTCOMING|NOTTODAY|ABSENT|SKIP|WONTBECOMING|CANTCOME|CANTMAKEIT)$")
 
 
 @dataclass
 class ParseResult:
-    action: str  # confirm | change | ambiguous
+    action: str  # confirm | change | absent | ambiguous
     new_pickup_person: Optional[str] = None
 
 
@@ -26,13 +27,14 @@ You will receive:
 - The children's names
 - The parent's reply text
 
-Classify the reply into one of three actions:
+Classify the reply into one of four actions:
 - "confirm": the parent is confirming that the ongoing person is picking up (e.g. "yes", "sounds good", "that's correct")
 - "change": the parent is saying someone else is picking up instead. Extract the name.
+- "absent": the parent is saying the child will not be coming / not attending today (e.g. "not coming", "we're skipping today", "she's sick", "won't be there")
 - "ambiguous": the reply is unclear, asks a question, or doesn't answer.
 
 Respond with ONLY a JSON object of the form:
-{"action": "confirm" | "change" | "ambiguous", "new_pickup_person": string | null}
+{"action": "confirm" | "change" | "absent" | "ambiguous", "new_pickup_person": string | null}
 
 If action is "change", new_pickup_person must be a non-empty name.
 Otherwise new_pickup_person must be null.
@@ -54,6 +56,8 @@ class ReplyParser:
         cleaned = _clean_for_regex(body)
         if YES_REGEX.match(cleaned):
             return ParseResult(action="confirm")
+        if NO_REGEX.match(cleaned):
+            return ParseResult(action="absent")
         return self._llm_parse(body, ongoing_person, children_names)
 
     def _llm_parse(
@@ -76,7 +80,7 @@ class ReplyParser:
             text = resp.text.strip()
             data = json.loads(text)
             action = data.get("action")
-            if action not in {"confirm", "change", "ambiguous"}:
+            if action not in {"confirm", "change", "absent", "ambiguous"}:
                 log.warning("parser_bad_action", action=action)
                 return ParseResult(action="ambiguous")
             if action == "change":

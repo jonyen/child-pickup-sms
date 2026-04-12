@@ -57,11 +57,19 @@ def _build_summary(
 ) -> SummaryData:
     confirmed: list[GroupOutcome] = []
     changed: list[GroupOutcome] = []
+    absent: list[GroupOutcome] = []
     no_response: list[GroupOutcome] = []
 
     for child, cell_value in filled_rows:
         if cell_value == child.ongoing_person:
             confirmed.append(
+                GroupOutcome(
+                    pickup_person=child.ongoing_person,
+                    children=[child.full_name],
+                )
+            )
+        elif cell_value == "ABSENT":
+            absent.append(
                 GroupOutcome(
                     pickup_person=child.ongoing_person,
                     children=[child.full_name],
@@ -98,6 +106,7 @@ def _build_summary(
         pickup_date=target_date,
         confirmed=confirmed,
         changed=changed,
+        absent=absent,
         no_response=no_response,
         send_errors=[],
     )

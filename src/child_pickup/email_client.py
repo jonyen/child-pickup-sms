@@ -23,6 +23,7 @@ class SummaryData:
     pickup_date: date
     confirmed: list[GroupOutcome]
     changed: list[GroupOutcome]
+    absent: list[GroupOutcome]
     no_response: list[GroupOutcome]
     send_errors: list[str]
 
@@ -73,6 +74,13 @@ class EmailClient:
         for g in data.changed:
             orig = f" (was: {g.original_ongoing})" if g.original_ongoing else ""
             lines.append(f"  - {g.pickup_person}{orig}: {', '.join(g.children)}")
+        lines.append("")
+
+        lines.append(f"Absent ({len(data.absent)}):")
+        if not data.absent:
+            lines.append("  (none)")
+        for g in data.absent:
+            lines.append(f"  - {', '.join(g.children)}")
         lines.append("")
 
         lines.append(f"No response ({len(data.no_response)}):")

@@ -2,6 +2,10 @@
 
 Automated Saturday-night SMS confirmation workflow for Sunday child pickups, backed by Google Sheets.
 
+## Why
+
+The church keeps a Google Sheet tracking who picks up each child on Sundays. Coordinators used to message parents individually on Saturday nights to confirm, and parents had to open a laptop or navigate the Sheets app on their phone to update the spreadsheet — not something most people want to do on a Saturday evening. This app turns that into a simple text message exchange: parents get a confirmation SMS and reply with a quick "yes", a name change, or "not coming." The sheet updates itself.
+
 ## Storyboard
 
 ```
@@ -55,8 +59,14 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
  │  Writes "Grandma" to the   │           │  → new_pickup_person:       │
  │  sheet for Emma & Noah      │           │    "Uncle Joe"              │
  │                             │           │                             │
- └──────────────┬──────────────┘           │  Writes "Uncle Joe" to the  │
-                │                          │  sheet for Olivia            │
+ │  📱 Notifies Mr. Lee:       │           │  Writes "Uncle Joe" to the  │
+ │  "FYI — Grandma picking up  │           │  sheet for Olivia            │
+ │   Emma Lee and Noah Lee has │           │                             │
+ │   been confirmed. No need   │           │  📱 Notifies Mr. Kim:       │
+ │   to reply."                │           │  "FYI — pickup for Olivia   │
+ │                             │           │   Kim has been changed to   │
+ └──────────────┬──────────────┘           │   Uncle Joe. No need to     │
+                │                          │   reply."                   │
                 │                          └──────────────┬──────────────┘
                 ▼                                         ▼
  ┌──────────────────────────────────────────────────────────────────────┐
@@ -79,7 +89,33 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
  └─────────────────────────────┘           │   confirm Grandma, or just  │
     Cell stays blank, parent                │   the name of who's        │
     can reply again before cutoff           │   picking up?"             │
-                                           └─────────────────────────────┘
+    No notification to other parent         └─────────────────────────────┘
+
+
+ SCENARIO D: Child not coming
+ ┌─────────────────────────────┐
+ │  📱 Mrs. Park replies:      │
+ │                             │
+ │    "She's sick today,       │
+ │     not coming"             │
+ │                             │
+ └──────────────┬──────────────┘
+                │
+                ▼
+ ┌─────────────────────────────┐
+ │  Twilio webhook → Lambda    │
+ │                             │
+ │  Gemini classifies:         │
+ │  → action: absent           │
+ │                             │
+ │  Writes "ABSENT" to the     │
+ │  sheet for the child        │
+ │                             │
+ │  📱 Notifies Mr. Park:      │
+ │  "FYI — Lily Park marked    │
+ │   as not coming. No need    │
+ │   to reply."                │
+ └─────────────────────────────┘
 
 
  SATURDAY 9:00 PM — CUTOFF
@@ -100,6 +136,9 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
  │  │                                                                  │  │
  │  │  CHANGED                                                         │  │
  │  │    Uncle Joe → Olivia Kim  (was: Dad)                            │  │
+ │  │                                                                  │  │
+ │  │  ABSENT                                                          │  │
+ │  │    Lily Park                                                     │  │
  │  │                                                                  │  │
  │  │  NO RESPONSE                                                     │  │
  │  │    (none this week — everyone replied!)                           │  │
@@ -154,12 +193,14 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 1. Parent's SMS hits the **Twilio webhook** -> API Gateway -> Lambda
 2. Reads blank rows in the pickup schedule and matches children to the sender's phone via **KidsInfo**
 3. Parses the reply:
-   - **Fast path**: `YES` / `Y` / `OK` / etc. (regex) -> confirmed
-   - **Slow path**: free-form text -> Google Gemini Flash classifies as confirm, change, or ambiguous
+   - **Fast path**: `YES` / `Y` / `OK` / etc. (regex) -> confirmed; `NO` / `NOT COMING` / `ABSENT` / etc. (regex) -> absent
+   - **Slow path**: free-form text -> Google Gemini Flash classifies as confirm, change, absent, or ambiguous
 4. Writes the result to the pickup date column:
    - **Confirmed**: writes the ON-GOING person's name (cell is no longer blank)
    - **Changed**: writes the new pickup person's name
+   - **Absent**: writes `ABSENT` (child not coming)
 5. If ambiguous, texts back asking for clarification
+6. For confirm/change/absent, notifies the **other parent** that a response was received and no reply is needed
 
 ### Saturday 9pm ET - Cutoff Flow
 
@@ -168,6 +209,7 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 3. Builds a summary from the column state:
    - **Confirmed**: cell value matches ON-GOING person
    - **Changed**: cell value differs from ON-GOING person
+   - **Absent**: cell value is `ABSENT`
    - **No response**: cell was blank (now `NO RESPONSE`), includes parent contact info
 4. Emails the summary to organizers via SES
 

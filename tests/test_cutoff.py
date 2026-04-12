@@ -69,6 +69,39 @@ def test_cutoff_writes_no_response_for_blank_rows():
     assert len(data.no_response) == 2
 
 
+def test_cutoff_categorizes_absent_separately():
+    pickup_rows = [
+        ["Last Name", "Full Name", "ON-GOING", "4/12"],
+        ["Chow", "Estelle Chow", "Jenny or Alan", "Jenny or Alan"],  # confirmed
+        ["Shim", "Caden Shim", "Hanseul or Deandra", "ABSENT"],  # absent
+        ["Shim", "Easton Shim", "Hanseul or Deandra", "ABSENT"],  # absent
+        ["Lee", "Alden Lee", "Bliss or Liny", ""],  # blank → no response
+    ]
+    sheets = MagicMock()
+    sheets.read_range.side_effect = lambda rng: {
+        "'Pickup Schedule'!A1:Z1000": pickup_rows,
+        "'All DMV KidsInfo'!A1:Z1000": _kids_info_rows(),
+    }[rng]
+    email = MagicMock()
+
+    run_cutoff_flow(
+        sheets=sheets,
+        email=email,
+        pickup_tab="Pickup Schedule",
+        kids_info_tab="All DMV KidsInfo",
+        pickup_col_index=3,
+        target_date=date(2026, 4, 12),
+        now=datetime(2026, 4, 12, 1, 0, tzinfo=timezone.utc),
+    )
+
+    email.send_summary.assert_called_once()
+    data: SummaryData = email.send_summary.call_args.args[0]
+    assert len(data.confirmed) == 1
+    assert len(data.absent) == 2
+    assert len(data.no_response) == 1
+    assert len(data.changed) == 0
+
+
 def test_cutoff_still_emails_when_all_resolved():
     pickup_rows = [
         ["Last Name", "Full Name", "ON-GOING", "4/12"],

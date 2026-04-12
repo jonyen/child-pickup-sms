@@ -155,6 +155,15 @@ def _handle_webhook(event: dict) -> dict:
         now=now_local.astimezone(timezone.utc),
     )
     log.info("reply_handled", action=outcome.action, from_phone=from_phone)
+
+    if outcome.notify_phones and outcome.notify_text:
+        for phone in outcome.notify_phones:
+            try:
+                twilio.send(to=phone, body=outcome.notify_text)
+                log.info("notify_other_parent", to=phone)
+            except Exception as e:
+                log.warning("notify_other_parent_failed", to=phone, error=str(e))
+
     return _twiml_response(outcome.reply_text or "")
 
 
