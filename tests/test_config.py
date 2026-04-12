@@ -50,13 +50,13 @@ def test_fetch_secrets(mock_boto3, monkeypatch):
     mock_boto3.client.return_value = mock_sm
     mock_sm.get_secret_value.side_effect = [
         {"SecretString": json.dumps({"account_sid": "AC1", "auth_token": "TOK"})},
-        {"SecretString": json.dumps({"type": "service_account", "client_email": "svc@proj.iam"})},
+        {"SecretString": json.dumps({"client_id": "cid", "client_secret": "csec", "refresh_token": "rtok"})},
         {"SecretString": json.dumps({"api_key": "sk-ant-1"})},
     ]
     secrets = cfg.load_secrets()
     assert secrets.twilio_account_sid == "AC1"
     assert secrets.twilio_auth_token == "TOK"
-    assert secrets.google_service_account["client_email"] == "svc@proj.iam"
+    assert secrets.google_oauth["refresh_token"] == "rtok"
     assert secrets.anthropic_api_key == "sk-ant-1"
 
 

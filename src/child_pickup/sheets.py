@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import Optional
 
-from google.oauth2 import service_account
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 
@@ -9,10 +10,16 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
 class SheetsClient:
-    def __init__(self, service_account_info: dict, spreadsheet_id: str):
-        creds = service_account.Credentials.from_service_account_info(
-            service_account_info, scopes=SCOPES
+    def __init__(self, oauth_info: dict, spreadsheet_id: str):
+        creds = Credentials(
+            token=None,
+            refresh_token=oauth_info["refresh_token"],
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=oauth_info["client_id"],
+            client_secret=oauth_info["client_secret"],
+            scopes=SCOPES,
         )
+        creds.refresh(Request())
         self.service = build("sheets", "v4", credentials=creds, cache_discovery=False)
         self.spreadsheet_id = spreadsheet_id
 

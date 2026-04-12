@@ -12,7 +12,7 @@ import boto3
 class Secrets:
     twilio_account_sid: str
     twilio_auth_token: str
-    google_service_account: dict
+    google_oauth: dict  # {client_id, client_secret, refresh_token}
     anthropic_api_key: str
 
 
@@ -52,7 +52,7 @@ class Config:
         sm = boto3.client("secretsmanager", region_name=self.aws_region)
         twilio = json.loads(sm.get_secret_value(SecretId="child-pickup/twilio")["SecretString"])
         google = json.loads(
-            sm.get_secret_value(SecretId="child-pickup/google-service-account")["SecretString"]
+            sm.get_secret_value(SecretId="child-pickup/google-oauth")["SecretString"]
         )
         anthropic = json.loads(
             sm.get_secret_value(SecretId="child-pickup/anthropic")["SecretString"]
@@ -60,7 +60,7 @@ class Config:
         return Secrets(
             twilio_account_sid=twilio["account_sid"],
             twilio_auth_token=twilio["auth_token"],
-            google_service_account=google,
+            google_oauth=google,
             anthropic_api_key=anthropic["api_key"],
         )
 

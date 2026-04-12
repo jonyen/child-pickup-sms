@@ -57,7 +57,7 @@ def _sunday_after(now_local: datetime) -> date:
 def _bootstrap_clients():
     cfg = get_config()
     secrets = cfg.load_secrets()
-    sheets = SheetsClient(secrets.google_service_account, cfg.spreadsheet_id)
+    sheets = SheetsClient(secrets.google_oauth, cfg.spreadsheet_id)
     twilio = TwilioClient(
         account_sid=secrets.twilio_account_sid,
         auth_token=secrets.twilio_auth_token,
