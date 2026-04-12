@@ -13,7 +13,7 @@ class Secrets:
     twilio_account_sid: str
     twilio_auth_token: str
     google_oauth: dict  # {client_id, client_secret, refresh_token}
-    anthropic_api_key: str
+    gemini_api_key: str
 
 
 @dataclass
@@ -52,14 +52,14 @@ class Config:
         google = json.loads(
             sm.get_secret_value(SecretId="child-pickup/google-oauth")["SecretString"]
         )
-        anthropic = json.loads(
-            sm.get_secret_value(SecretId="child-pickup/anthropic")["SecretString"]
+        gemini = json.loads(
+            sm.get_secret_value(SecretId="child-pickup/gemini")["SecretString"]
         )
         return Secrets(
             twilio_account_sid=twilio["account_sid"],
             twilio_auth_token=twilio["auth_token"],
             google_oauth=google,
-            anthropic_api_key=anthropic["api_key"],
+            gemini_api_key=gemini["api_key"],
         )
 
 

@@ -2,6 +2,111 @@
 
 Automated Saturday-night SMS confirmation workflow for Sunday child pickups, backed by Google Sheets.
 
+## Storyboard
+
+```
+ SATURDAY 5:00 PM                        THE GOOGLE SHEET
+ ┌─────────────────────────┐             ┌──────────────────────────────────┐
+ │  ⏰ EventBridge fires   │             │  Pickup Schedule                 │
+ │  flow: "send"           │             │                                 │
+ │                         │  reads -->  │  Name       │ ON-GOING │ 4/13   │
+ │  Lambda wakes up and    │             │  ───────────┼──────────┼──────  │
+ │  scans the sheet for    │             │  Emma Lee   │ Grandma  │        │
+ │  blank cells in the     │             │  Noah Lee   │ Grandma  │        │
+ │  Sunday column          │             │  Olivia Kim │ Dad      │        │
+ └─────────────────────────┘             └──────────────────────────────────┘
+             │                                     blank = needs confirmation
+             ▼
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │  Groups children by pickup person, looks up parent phones in KidsInfo  │
+ └──────────────────────────────┬──────────────────────────────────────────┘
+                                │
+         ┌──────────────────────┴──────────────────────┐
+         ▼                                             ▼
+ ┌──────────────────────────────┐   ┌──────────────────────────────────────┐
+ │  📱 SMS to Lee parents       │   │  📱 SMS to Kim parents               │
+ │                              │   │                                      │
+ │  "Hi, this is the DMV        │   │  "Hi, this is the DMV                │
+ │   Coordinator. One of you —  │   │   Coordinator. Confirming Dad is     │
+ │   confirming Grandma is      │   │   picking up Olivia Kim tomorrow     │
+ │   picking up Emma Lee and    │   │   (4/13). Reply YES to confirm,      │
+ │   Noah Lee tomorrow (4/13).  │   │   or reply with who will pick        │
+ │   Reply YES to confirm, or   │   │   them up instead."                  │
+ │   reply with who will pick   │   │                                      │
+ │   them up instead."          │   │                                      │
+ └──────────────────────────────┘   └──────────────────────────────────────┘
+
+
+ SCENARIO A: Parent confirms              SCENARIO B: Parent changes
+ ┌─────────────────────────────┐           ┌─────────────────────────────┐
+ │  📱 Mrs. Lee replies:       │           │  📱 Mrs. Kim replies:       │
+ │                             │           │                             │
+ │    "Yes"                    │           │    "Uncle Joe will get her"  │
+ │                             │           │                             │
+ └──────────────┬──────────────┘           └──────────────┬──────────────┘
+                │                                         │
+                ▼                                         ▼
+ ┌─────────────────────────────┐           ┌─────────────────────────────┐
+ │  Twilio webhook → Lambda    │           │  Twilio webhook → Lambda    │
+ │                             │           │                             │
+ │  Regex matches "Yes"        │           │  Regex doesn't match →      │
+ │  → action: confirm          │           │  Gemini classifies:         │
+ │                             │           │  → action: change           │
+ │  Writes "Grandma" to the   │           │  → new_pickup_person:       │
+ │  sheet for Emma & Noah      │           │    "Uncle Joe"              │
+ │                             │           │                             │
+ └──────────────┬──────────────┘           │  Writes "Uncle Joe" to the  │
+                │                          │  sheet for Olivia            │
+                │                          └──────────────┬──────────────┘
+                ▼                                         ▼
+ ┌──────────────────────────────────────────────────────────────────────┐
+ │  THE SHEET AFTER REPLIES                                            │
+ │                                                                     │
+ │  Name       │ ON-GOING │ 4/13                                       │
+ │  ───────────┼──────────┼───────────                                 │
+ │  Emma Lee   │ Grandma  │ Grandma      ✓ confirmed                   │
+ │  Noah Lee   │ Grandma  │ Grandma      ✓ confirmed                   │
+ │  Olivia Kim │ Dad      │ Uncle Joe    ✎ changed                     │
+ └──────────────────────────────────────────────────────────────────────┘
+
+
+ SCENARIO C: Ambiguous reply
+ ┌─────────────────────────────┐           ┌─────────────────────────────┐
+ │  📱 Parent replies:         │           │  📱 App texts back:         │
+ │                             │    →      │                             │
+ │    "What time again?"       │           │  "Sorry, didn't catch that  │
+ │                             │           │   — could you reply YES to  │
+ └─────────────────────────────┘           │   confirm Grandma, or just  │
+    Cell stays blank, parent                │   the name of who's        │
+    can reply again before cutoff           │   picking up?"             │
+                                           └─────────────────────────────┘
+
+
+ SATURDAY 9:00 PM — CUTOFF
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │  ⏰ EventBridge fires flow: "cutoff"                                   │
+ │                                                                        │
+ │  Lambda scans for any remaining blank cells:                           │
+ │                                                                        │
+ │    blank cell found → writes "NO RESPONSE"                             │
+ │                                                                        │
+ │  Then builds a summary and emails organizers via SES:                  │
+ │                                                                        │
+ │  ┌───────────────────────────────────────────────────────────────────┐  │
+ │  │  📧 Pickup Summary for Sunday 4/13                               │  │
+ │  │                                                                  │  │
+ │  │  CONFIRMED                                                       │  │
+ │  │    Grandma → Emma Lee, Noah Lee                                  │  │
+ │  │                                                                  │  │
+ │  │  CHANGED                                                         │  │
+ │  │    Uncle Joe → Olivia Kim  (was: Dad)                            │  │
+ │  │                                                                  │  │
+ │  │  NO RESPONSE                                                     │  │
+ │  │    (none this week — everyone replied!)                           │  │
+ │  └───────────────────────────────────────────────────────────────────┘  │
+ └─────────────────────────────────────────────────────────────────────────┘
+```
+
 ## How It Works
 
 ```

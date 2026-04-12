@@ -56,7 +56,7 @@ def test_fetch_secrets(mock_boto3, monkeypatch):
     assert secrets.twilio_account_sid == "AC1"
     assert secrets.twilio_auth_token == "TOK"
     assert secrets.google_oauth["refresh_token"] == "rtok"
-    assert secrets.anthropic_api_key == "sk-ant-1"
+    assert secrets.gemini_api_key == "sk-ant-1"
 
 
 def _required_env() -> dict:

@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-import anthropic
+from google import genai
 
 from .logging_setup import get_logger
 
@@ -40,15 +40,9 @@ Otherwise new_pickup_person must be null.
 
 
 class ReplyParser:
-    def __init__(self, anthropic_api_key: str, model: str = "claude-haiku-4-5-20251001"):
-        self._api_key = anthropic_api_key
+    def __init__(self, gemini_api_key: str, model: str = "gemini-2.0-flash"):
         self._model = model
-        self._client = None  # lazy init to keep regex-only tests from touching the SDK
-
-    def _get_client(self):
-        if self._client is None:
-            self._client = anthropic.Anthropic(api_key=self._api_key)
-        return self._client
+        self._client = genai.Client(api_key=gemini_api_key)
 
     def parse(
         self,
@@ -71,13 +65,15 @@ class ReplyParser:
             f"reply: {body}"
         )
         try:
-            resp = self._get_client().messages.create(
+            resp = self._client.models.generate_content(
                 model=self._model,
-                max_tokens=128,
-                system=LLM_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
+                contents=user_msg,
+                config=genai.types.GenerateContentConfig(
+                    system_instruction=LLM_SYSTEM_PROMPT,
+                    max_output_tokens=128,
+                ),
             )
-            text = resp.content[0].text.strip()
+            text = resp.text.strip()
             data = json.loads(text)
             action = data.get("action")
             if action not in {"confirm", "change", "ambiguous"}:

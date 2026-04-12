@@ -63,7 +63,7 @@ def _bootstrap_clients():
         from_number=cfg.twilio_from_number,
         dry_run=cfg.dry_run,
     )
-    parser = ReplyParser(anthropic_api_key=secrets.anthropic_api_key)
+    parser = ReplyParser(gemini_api_key=secrets.gemini_api_key)
     email = EmailClient(
         sender=cfg.summary_email_from,
         recipients=cfg.summary_email_recipients,

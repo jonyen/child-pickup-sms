@@ -4,7 +4,8 @@ from child_pickup.parser import ReplyParser, ParseResult
 
 
 def test_regex_yes_variants_return_confirm():
-    parser = ReplyParser(anthropic_api_key="sk-ant-test")
+    with patch("child_pickup.parser.genai.Client"):
+        parser = ReplyParser(gemini_api_key="test-key")
     for body in ["YES", "yes", "Y", "Yep", "yeah", " YUP ", "OK", "okay.", "Sure!"]:
         r = parser.parse(body, ongoing_person="Hanseul or Deandra",
                          children_names=["Caden Shim"])
@@ -12,15 +13,15 @@ def test_regex_yes_variants_return_confirm():
         assert r.new_pickup_person is None
 
 
-@patch("child_pickup.parser.anthropic.Anthropic")
-def test_llm_fallback_on_non_matching_reply(mock_anth):
-    mock_client = mock_anth.return_value
-    mock_client.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=json.dumps(
+@patch("child_pickup.parser.genai.Client")
+def test_llm_fallback_on_non_matching_reply(mock_client_cls):
+    mock_client = mock_client_cls.return_value
+    mock_client.models.generate_content.return_value = MagicMock(
+        text=json.dumps(
             {"action": "change", "new_pickup_person": "Grandma Linda"}
-        ))]
+        )
     )
-    parser = ReplyParser(anthropic_api_key="sk-ant-test")
+    parser = ReplyParser(gemini_api_key="test-key")
     r = parser.parse(
         "actually my mom Linda is grabbing him",
         ongoing_person="Hanseul or Deandra",
@@ -30,25 +31,25 @@ def test_llm_fallback_on_non_matching_reply(mock_anth):
     assert r.new_pickup_person == "Grandma Linda"
 
 
-@patch("child_pickup.parser.anthropic.Anthropic")
-def test_llm_ambiguous_response(mock_anth):
-    mock_client = mock_anth.return_value
-    mock_client.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=json.dumps(
+@patch("child_pickup.parser.genai.Client")
+def test_llm_ambiguous_response(mock_client_cls):
+    mock_client = mock_client_cls.return_value
+    mock_client.models.generate_content.return_value = MagicMock(
+        text=json.dumps(
             {"action": "ambiguous", "new_pickup_person": None}
-        ))]
+        )
     )
-    parser = ReplyParser(anthropic_api_key="sk-ant-test")
+    parser = ReplyParser(gemini_api_key="test-key")
     r = parser.parse("hmm", ongoing_person="Shara", children_names=["Estelle Chow"])
     assert r.action == "ambiguous"
 
 
-@patch("child_pickup.parser.anthropic.Anthropic")
-def test_llm_malformed_json_becomes_ambiguous(mock_anth):
-    mock_client = mock_anth.return_value
-    mock_client.messages.create.return_value = MagicMock(
-        content=[MagicMock(text="not json at all")]
+@patch("child_pickup.parser.genai.Client")
+def test_llm_malformed_json_becomes_ambiguous(mock_client_cls):
+    mock_client = mock_client_cls.return_value
+    mock_client.models.generate_content.return_value = MagicMock(
+        text="not json at all"
     )
-    parser = ReplyParser(anthropic_api_key="sk-ant-test")
+    parser = ReplyParser(gemini_api_key="test-key")
     r = parser.parse("?", ongoing_person="Shara", children_names=["Estelle Chow"])
     assert r.action == "ambiguous"
