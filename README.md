@@ -155,7 +155,7 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 2. Reads blank rows in the pickup schedule and matches children to the sender's phone via **KidsInfo**
 3. Parses the reply:
    - **Fast path**: `YES` / `Y` / `OK` / etc. (regex) -> confirmed
-   - **Slow path**: free-form text -> Claude Haiku classifies as confirm, change, or ambiguous
+   - **Slow path**: free-form text -> Google Gemini Flash classifies as confirm, change, or ambiguous
 4. Writes the result to the pickup date column:
    - **Confirmed**: writes the ON-GOING person's name (cell is no longer blank)
    - **Changed**: writes the new pickup person's name
@@ -180,7 +180,7 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 | SMS webhook | API Gateway HTTP API |
 | SMS | Twilio |
 | Data store | Google Sheets (Pickup Schedule is the single source of truth) |
-| Reply parsing | Regex fast path + Claude Haiku fallback |
+| Reply parsing | Regex fast path + Google Gemini Flash fallback |
 | Email | AWS SES |
 | Secrets | AWS Secrets Manager |
 | IaC | AWS SAM (`template.yaml`) |
@@ -192,7 +192,7 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 - AWS account with SAM CLI installed
 - Twilio account with an SMS-capable US number (~$1.15/mo)
 - Google Cloud project with Sheets API enabled
-- Anthropic API key
+- Google Gemini API key
 
 ### 1. Get Google OAuth credentials
 
@@ -215,8 +215,8 @@ aws secretsmanager create-secret --name child-pickup/twilio \
 aws secretsmanager create-secret --name child-pickup/google-oauth \
   --secret-string '{"client_id":"...","client_secret":"...","refresh_token":"..."}'
 
-aws secretsmanager create-secret --name child-pickup/anthropic \
-  --secret-string '{"api_key":"sk-ant-..."}'
+aws secretsmanager create-secret --name child-pickup/gemini \
+  --secret-string '{"api_key":"..."}'
 ```
 
 ### 3. Configure Twilio webhook
@@ -263,7 +263,7 @@ src/child_pickup/
   kids_info.py          # KidsInfo tab parser
   pickup_schedule.py    # Pickup Schedule reader + grouping + next-week column
   twilio_client.py      # Twilio SMS send + signature verification
-  parser.py             # Reply parser (regex + Claude Haiku)
+  parser.py             # Reply parser (regex + Google Gemini Flash)
   email_client.py       # SES summary email
   models.py             # Child, Group dataclasses
   logging_setup.py      # Structured JSON logging
