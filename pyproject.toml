@@ -1,0 +1,32 @@
+[project]
+name = "child-pickup"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "google-api-python-client==2.149.0",
+    "google-auth==2.35.0",
+    "twilio==9.3.5",
+    "anthropic==0.39.0",
+    "boto3==1.35.55",
+    "structlog==24.4.0",
+    "pydantic==2.9.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.3",
+    "pytest-mock==3.14.0",
+    "freezegun==1.5.1",
+    "moto[ses,secretsmanager]==5.0.20",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
