@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Child pickup confirmation app
+
+Parameters:
+  SpreadsheetId:
+    Type: String
+  PickupTabName:
+    Type: String
+    Default: 'Pickup Schedule'
+  KidsInfoTabName:
+    Type: String
+    Default: 'All DMV KidsInfo'
+  PendingTabName:
+    Type: String
+    Default: 'Pending Confirmations'
+  TwilioFromNumber:
+    Type: String
+  SummaryEmailRecipients:
+    Type: String
+    Description: Comma-separated list
+  SummaryEmailFrom:
+    Type: String
+  CoordinatorName:
+    Type: String
+    Default: 'DMV pickup coordinator'
+  Timezone:
+    Type: String
+    Default: America/New_York
+  DryRun:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 256
+    Architectures:
+      - arm64
+
+Resources:
+  ChildPickupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: child-pickup-handler
+      CodeUri: src/
+      Handler: child_pickup.handler.lambda_handler
+      Environment:
+        Variables:
+          SPREADSHEET_ID: !Ref SpreadsheetId
+          PICKUP_TAB_NAME: !Ref PickupTabName
+          KIDS_INFO_TAB_NAME: !Ref KidsInfoTabName
+          PENDING_TAB_NAME: !Ref PendingTabName
+          TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
+          SUMMARY_EMAIL_RECIPIENTS: !Ref SummaryEmailRecipients
+          SUMMARY_EMAIL_FROM: !Ref SummaryEmailFrom
+          COORDINATOR_NAME: !Ref CoordinatorName
+          TIMEZONE: !Ref Timezone
+          DRY_RUN: !Ref DryRun
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:child-pickup/*'
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+              Resource: '*'
+      Events:
+        SendSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 21 ? * SAT *)
+            Input: '{"source":"aws.events","detail-type":"Scheduled Event","detail":{"flow":"send"}}'
+        CutoffSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 1 ? * SUN *)
+            Input: '{"source":"aws.events","detail-type":"Scheduled Event","detail":{"flow":"cutoff"}}'
+        SmsWebhook:
+          Type: HttpApi
+          Properties:
+            Path: /sms
+            Method: POST
+
+  ErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: child-pickup-errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ChildPickupFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  WebhookUrl:
+    Description: Configure this as the Twilio incoming SMS webhook (POST)
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/sms'
