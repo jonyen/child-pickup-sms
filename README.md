@@ -9,7 +9,6 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
                     +-----------------------+
                     | Pickup Schedule tab   |
                     | All DMV KidsInfo tab  |
-                    | Pending Confirms tab  |
                     +-----------+-----------+
                                 |
                     reads/writes via Sheets API
@@ -27,11 +26,13 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
     | Send     | | Reply    |  | Cutoff             |
     | flow     | | flow     |  | flow               |
     +----------+ +----------+  +--------------------+
-    Reads blank   Parses SMS    Marks NO RESPONSE
-    rows, groups  (regex/LLM),  for unreplied rows,
-    by pickup     writes new    sends summary email
-    person,       pickup name   via SES
-    sends SMS     to sheet
+    Reads blank   Parses SMS    Reads column for
+    rows, groups  (regex/LLM),  blank rows (no
+    by pickup     writes result response), writes
+    person,       to sheet      NO RESPONSE, sends
+    sends SMS,                  summary email via
+    adds next                   SES
+    week column
 ```
 
 ### Saturday 5pm ET - Send Flow
@@ -41,23 +42,29 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 3. Groups children by their default pickup person (`ON-GOING` column)
 4. Looks up parent phone numbers from the **All DMV KidsInfo** tab
 5. Sends one SMS per group to both parents: *"Confirming [person] is picking up [children] tomorrow. Reply YES or tell us who instead."*
-6. Writes a pending confirmation row to the **Pending Confirmations** tab
+6. Creates a column for **next week** if it doesn't already exist
 
 ### Parent Replies - Reply Flow
 
 1. Parent's SMS hits the **Twilio webhook** -> API Gateway -> Lambda
-2. Matches the reply to a pending confirmation by phone number
+2. Reads blank rows in the pickup schedule and matches children to the sender's phone via **KidsInfo**
 3. Parses the reply:
    - **Fast path**: `YES` / `Y` / `OK` / etc. (regex) -> confirmed
    - **Slow path**: free-form text -> Claude Haiku classifies as confirm, change, or ambiguous
-4. Writes the result back to the pickup date column
+4. Writes the result to the pickup date column:
+   - **Confirmed**: writes the ON-GOING person's name (cell is no longer blank)
+   - **Changed**: writes the new pickup person's name
 5. If ambiguous, texts back asking for clarification
 
 ### Saturday 9pm ET - Cutoff Flow
 
-1. Finds any still-pending confirmations
-2. Writes `NO RESPONSE` into their pickup cells
-3. Emails a summary to organizers via SES: confirmed, changed, no-response, and any errors
+1. Reads the Sunday column and finds rows that are still **blank** (no reply received)
+2. Writes `NO RESPONSE` into those blank cells
+3. Builds a summary from the column state:
+   - **Confirmed**: cell value matches ON-GOING person
+   - **Changed**: cell value differs from ON-GOING person
+   - **No response**: cell was blank (now `NO RESPONSE`), includes parent contact info
+4. Emails the summary to organizers via SES
 
 ## Stack
 
@@ -67,7 +74,7 @@ Automated Saturday-night SMS confirmation workflow for Sunday child pickups, bac
 | Scheduling | EventBridge (two cron rules) |
 | SMS webhook | API Gateway HTTP API |
 | SMS | Twilio |
-| Data store | Google Sheets (source of truth + pending state) |
+| Data store | Google Sheets (Pickup Schedule is the single source of truth) |
 | Reply parsing | Regex fast path + Claude Haiku fallback |
 | Email | AWS SES |
 | Secrets | AWS Secrets Manager |
@@ -149,11 +156,10 @@ src/child_pickup/
   cutoff.py             # Saturday 9pm cutoff flow
   sheets.py             # Google Sheets API wrapper
   kids_info.py          # KidsInfo tab parser
-  pickup_schedule.py    # Pickup Schedule reader + grouping
-  pending.py            # Pending Confirmations tab store
+  pickup_schedule.py    # Pickup Schedule reader + grouping + next-week column
   twilio_client.py      # Twilio SMS send + signature verification
   parser.py             # Reply parser (regex + Claude Haiku)
   email_client.py       # SES summary email
-  models.py             # Child, Group, PendingConfirmation
+  models.py             # Child, Group dataclasses
   logging_setup.py      # Structured JSON logging
 ```

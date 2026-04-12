@@ -10,7 +10,6 @@ from .config import get_config
 from .email_client import EmailClient
 from .logging_setup import configure_logging, get_logger
 from .parser import ReplyParser
-from .pending import PendingStore
 from .pickup_schedule import find_date_column_index
 from .reply import handle_reply
 from .send import run_send_flow
@@ -83,7 +82,6 @@ def _run_send() -> dict:
         twilio=twilio,
         pickup_tab=cfg.pickup_tab_name,
         kids_info_tab=cfg.kids_info_tab_name,
-        pending_tab=cfg.pending_tab_name,
         target_date=target,
         coordinator_name=cfg.coordinator_name,
         now=now_local.astimezone(timezone.utc),
@@ -91,7 +89,6 @@ def _run_send() -> dict:
     log.info(
         "send_flow_complete",
         groups_sent=result.groups_sent,
-        groups_skipped=result.groups_skipped,
         sms_sent=result.sms_sent,
         sms_failed=result.sms_failed,
         aborted=result.aborted,
@@ -102,20 +99,17 @@ def _run_send() -> dict:
 def _run_cutoff() -> dict:
     cfg, sheets, _, _, email = _bootstrap_clients()
     now_local = _now_tz(cfg.timezone)
-    # Cutoff runs shortly after midnight UTC Sunday (= Saturday 9pm ET).
-    # From Saturday local time, tomorrow is Sunday; from Sunday local, today is Sunday.
     target = now_local.date() if now_local.weekday() == 6 else _sunday_after(now_local)
     pickup_rows = sheets.read_range(f"'{cfg.pickup_tab_name}'!A1:Z1000")
     col_index = find_date_column_index(pickup_rows[0], target) if pickup_rows else None
     if col_index is None:
         log.error("cutoff_column_not_found", target=target.isoformat())
         return {"status": "column_not_found"}
-    store = PendingStore(sheets, cfg.pending_tab_name)
     run_cutoff_flow(
         sheets=sheets,
-        store=store,
         email=email,
         pickup_tab=cfg.pickup_tab_name,
+        kids_info_tab=cfg.kids_info_tab_name,
         pickup_col_index=col_index,
         target_date=target,
         now=now_local.astimezone(timezone.utc),
@@ -149,14 +143,13 @@ def _handle_webhook(event: dict) -> dict:
         log.error("reply_column_not_found", target=target.isoformat())
         return _twiml_response("")
 
-    store = PendingStore(sheets, cfg.pending_tab_name)
     outcome = handle_reply(
         sheets=sheets,
-        store=store,
         parser=parser,
         from_phone=from_phone,
         body=body,
         pickup_tab=cfg.pickup_tab_name,
+        kids_info_tab=cfg.kids_info_tab_name,
         pickup_col_index=col_index,
         pickup_date=target,
         now=now_local.astimezone(timezone.utc),

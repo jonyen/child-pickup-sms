@@ -1,9 +1,7 @@
 # tests/test_send.py
 from datetime import date, datetime, timezone
-from unittest.mock import MagicMock, patch
-from child_pickup.send import run_send_flow, SendResult
-from child_pickup.models import Child, Group
-from child_pickup.kids_info import KidInfo
+from unittest.mock import MagicMock
+from child_pickup.send import run_send_flow
 
 
 def _pickup_rows():
@@ -37,12 +35,11 @@ def _kids_info_rows():
     ]
 
 
-def test_send_flow_skips_existing_pending_and_sends_new():
+def test_send_flow_sends_groups():
     sheets = MagicMock()
     sheets.read_range.side_effect = lambda rng: {
         "'Pickup Schedule'!A1:Z1000": _pickup_rows(),
         "'All DMV KidsInfo'!A1:Z1000": _kids_info_rows(),
-        "'Pending Confirmations'!A:L": [],
     }[rng]
 
     twilio = MagicMock()
@@ -51,7 +48,6 @@ def test_send_flow_skips_existing_pending_and_sends_new():
         twilio=twilio,
         pickup_tab="Pickup Schedule",
         kids_info_tab="All DMV KidsInfo",
-        pending_tab="Pending Confirmations",
         target_date=date(2026, 4, 12),
         coordinator_name="DMV pickup coordinator",
         now=datetime(2026, 4, 11, 21, 0, tzinfo=timezone.utc),
@@ -60,43 +56,63 @@ def test_send_flow_skips_existing_pending_and_sends_new():
     # Two groups: Shim (2 kids, 2 parents) and Lee (1 kid, 2 parents)
     assert result.groups_sent == 2
     assert twilio.send.call_count == 4  # 2 groups * 2 parents
-    # Pending rows appended
-    assert sheets.append_row.call_count == 2
 
 
-def test_send_flow_skips_group_already_pending():
-    pending_rows = [
-        [
-            "id-existing", "2026-04-11T20:00:00+00:00", "2026-04-12",
-            "3,4", "Caden Shim,Easton Shim", "Hanseul or Deandra",
-            "+15552221111", "Hanseul Shim", "pending", "", "", "",
-        ],
-    ]
+def test_send_flow_ensures_next_week_column():
     sheets = MagicMock()
     sheets.read_range.side_effect = lambda rng: {
         "'Pickup Schedule'!A1:Z1000": _pickup_rows(),
         "'All DMV KidsInfo'!A1:Z1000": _kids_info_rows(),
-        "'Pending Confirmations'!A:L": [
-            __import__("child_pickup.models", fromlist=["PendingConfirmation"])
-            .PendingConfirmation.SHEET_HEADERS
-        ] + pending_rows,
     }[rng]
 
     twilio = MagicMock()
-    result = run_send_flow(
+    run_send_flow(
         sheets=sheets,
         twilio=twilio,
         pickup_tab="Pickup Schedule",
         kids_info_tab="All DMV KidsInfo",
-        pending_tab="Pending Confirmations",
         target_date=date(2026, 4, 12),
         coordinator_name="DMV pickup coordinator",
         now=datetime(2026, 4, 11, 21, 0, tzinfo=timezone.utc),
     )
 
-    # Only the Lee group should have been sent
-    assert result.groups_sent == 1
-    assert sheets.append_row.call_count == 1
+    # 4/19 already exists in headers, so no new column should be added.
+    # But next week after 4/19 is 4/26 — not in headers. However, we process
+    # target 4/12, so next week = 4/19 which IS in headers → no update_range for header.
+    # The update_range calls should only be for blank rows (not header).
+    # Actually the send flow doesn't write to cells at all — only twilio.send.
+    # ensure_next_week_column should NOT write because 4/19 is already there.
+    header_writes = [
+        c for c in sheets.update_range.call_args_list
+        if "1" in c.args[0] and c.args[0].endswith("1")
+    ]
+    assert len(header_writes) == 0
+
+
+def test_send_flow_creates_next_week_column_when_missing():
+    rows = [
+        ["Last Name", "Full Name", "ON-GOING", "4/12"],
+        ["Shim", "Caden Shim", "Hanseul or Deandra", ""],
+    ]
+    sheets = MagicMock()
+    sheets.read_range.side_effect = lambda rng: {
+        "'Pickup Schedule'!A1:Z1000": rows,
+        "'All DMV KidsInfo'!A1:Z1000": _kids_info_rows(),
+    }[rng]
+
+    twilio = MagicMock()
+    run_send_flow(
+        sheets=sheets,
+        twilio=twilio,
+        pickup_tab="Pickup Schedule",
+        kids_info_tab="All DMV KidsInfo",
+        target_date=date(2026, 4, 12),
+        coordinator_name="DMV pickup coordinator",
+        now=datetime(2026, 4, 11, 21, 0, tzinfo=timezone.utc),
+    )
+
+    # Next week 4/19 not in headers → should write E1 = "4/19"
+    sheets.update_range.assert_any_call("'Pickup Schedule'!E1", [["4/19"]])
 
 
 def test_send_flow_aborts_if_column_missing():
@@ -104,7 +120,6 @@ def test_send_flow_aborts_if_column_missing():
     sheets.read_range.side_effect = lambda rng: {
         "'Pickup Schedule'!A1:Z1000": _pickup_rows(),
         "'All DMV KidsInfo'!A1:Z1000": _kids_info_rows(),
-        "'Pending Confirmations'!A:L": [],
     }[rng]
     twilio = MagicMock()
     result = run_send_flow(
@@ -112,7 +127,6 @@ def test_send_flow_aborts_if_column_missing():
         twilio=twilio,
         pickup_tab="Pickup Schedule",
         kids_info_tab="All DMV KidsInfo",
-        pending_tab="Pending Confirmations",
         target_date=date(2026, 5, 3),  # not in headers
         coordinator_name="DMV pickup coordinator",
         now=datetime(2026, 5, 2, 21, 0, tzinfo=timezone.utc),

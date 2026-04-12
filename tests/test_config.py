@@ -10,7 +10,6 @@ def test_config_reads_env(monkeypatch):
     monkeypatch.setenv("SPREADSHEET_ID", "sid-123")
     monkeypatch.setenv("PICKUP_TAB_NAME", "Pickup Schedule")
     monkeypatch.setenv("KIDS_INFO_TAB_NAME", "All DMV KidsInfo")
-    monkeypatch.setenv("PENDING_TAB_NAME", "Pending Confirmations")
     monkeypatch.setenv("TWILIO_FROM_NUMBER", "+15550000000")
     monkeypatch.setenv("SUMMARY_EMAIL_RECIPIENTS", "a@b.com,c@d.com")
     monkeypatch.setenv("SUMMARY_EMAIL_FROM", "pickup@dmv.org")
@@ -65,7 +64,7 @@ def _required_env() -> dict:
         "SPREADSHEET_ID": "sid-123",
         "PICKUP_TAB_NAME": "Pickup Schedule",
         "KIDS_INFO_TAB_NAME": "All DMV KidsInfo",
-        "PENDING_TAB_NAME": "Pending Confirmations",
+
         "TWILIO_FROM_NUMBER": "+15550000000",
         "SUMMARY_EMAIL_RECIPIENTS": "a@b.com",
         "SUMMARY_EMAIL_FROM": "pickup@dmv.org",

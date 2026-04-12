@@ -21,7 +21,6 @@ class Config:
     spreadsheet_id: str
     pickup_tab_name: str
     kids_info_tab_name: str
-    pending_tab_name: str
     twilio_from_number: str
     summary_email_recipients: list[str]
     summary_email_from: str
@@ -36,7 +35,6 @@ class Config:
             spreadsheet_id=os.environ["SPREADSHEET_ID"],
             pickup_tab_name=os.environ["PICKUP_TAB_NAME"],
             kids_info_tab_name=os.environ["KIDS_INFO_TAB_NAME"],
-            pending_tab_name=os.environ["PENDING_TAB_NAME"],
             twilio_from_number=os.environ["TWILIO_FROM_NUMBER"],
             summary_email_recipients=[
                 e.strip() for e in os.environ["SUMMARY_EMAIL_RECIPIENTS"].split(",") if e.strip()

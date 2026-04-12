@@ -11,9 +11,6 @@ Parameters:
   KidsInfoTabName:
     Type: String
     Default: 'All DMV KidsInfo'
-  PendingTabName:
-    Type: String
-    Default: 'Pending Confirmations'
   TwilioFromNumber:
     Type: String
   SummaryEmailRecipients:
@@ -52,7 +49,6 @@ Resources:
           SPREADSHEET_ID: !Ref SpreadsheetId
           PICKUP_TAB_NAME: !Ref PickupTabName
           KIDS_INFO_TAB_NAME: !Ref KidsInfoTabName
-          PENDING_TAB_NAME: !Ref PendingTabName
           TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
           SUMMARY_EMAIL_RECIPIENTS: !Ref SummaryEmailRecipients
           SUMMARY_EMAIL_FROM: !Ref SummaryEmailFrom
