@@ -2,9 +2,14 @@
 
 Automated Saturday-night SMS confirmation workflow for Sunday child pickups, backed by Google Sheets.
 
+> **Status: proposal.** The implementation and its test suite are complete, but
+> this has not been deployed and is not confirming anyone's pickups today. The
+> design, flows, and setup steps below describe how it is meant to run, not how
+> it currently runs.
+
 ## Why
 
-The church keeps a Google Sheet tracking who picks up each child on Sundays. Coordinators used to message parents individually on Saturday nights to confirm, and parents had to open a laptop or navigate the Sheets app on their phone to update the spreadsheet — not something most people want to do on a Saturday evening. This app turns that into a simple text message exchange: parents get a confirmation SMS and reply with a quick "yes", a name change, or "not coming." The sheet updates itself.
+The church keeps a Google Sheet tracking who picks up each child on Sundays. Coordinators message parents individually on Saturday nights to confirm, and parents have to open a laptop or navigate the Sheets app on their phone to update the spreadsheet — not something most people want to do on a Saturday evening. This app would turn that into a simple text message exchange: parents get a confirmation SMS and reply with a quick "yes", a name change, or "not coming." The sheet updates itself.
 
 ## Storyboard
 
