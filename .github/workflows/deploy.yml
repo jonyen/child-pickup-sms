@@ -1,0 +1,55 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: aws-actions/setup-sam@v2
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: SAM build
+        run: sam build
+
+      - name: SAM deploy
+        run: |
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+            --stack-name child-pickup \
+            --capabilities CAPABILITY_IAM \
+            --region "${{ vars.AWS_REGION }}" \
+            --parameter-overrides \
+              SpreadsheetId="${{ vars.SPREADSHEET_ID }}" \
+              TwilioFromNumber="${{ vars.TWILIO_FROM_NUMBER }}" \
+              SummaryEmailRecipients="${{ vars.SUMMARY_EMAIL_RECIPIENTS }}" \
+              SummaryEmailFrom="${{ vars.SUMMARY_EMAIL_FROM }}"
